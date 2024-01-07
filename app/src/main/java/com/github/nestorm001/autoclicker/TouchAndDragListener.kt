@@ -26,8 +26,10 @@ class TouchAndDragListener(private val params: WindowManager.LayoutParams,
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouch(v: View, event: MotionEvent): Boolean {
+        "event.action ${event.action}".logd()
         when (event.action and MotionEvent.ACTION_MASK) {
             MotionEvent.ACTION_DOWN -> {
+                "MotionEvent.ACTION_DOWN".logd()
                 isDrag = false
                 initialX = params.x
                 initialY = params.y
@@ -37,6 +39,7 @@ class TouchAndDragListener(private val params: WindowManager.LayoutParams,
             }
 
             MotionEvent.ACTION_MOVE -> {
+                "MotionEvent.ACTION_MOVE".logd()
                 if (!isDrag && isDragging(event)) {
                     isDrag = true
                 }
@@ -46,8 +49,9 @@ class TouchAndDragListener(private val params: WindowManager.LayoutParams,
                 onDrag?.invoke()
                 return true
             }
-
+            MotionEvent.ACTION_CANCEL,
             MotionEvent.ACTION_UP -> {
+                "MotionEvent.ACTION_UP".logd()
                 if (!isDrag) {
                     onTouch?.invoke()
                     return true

@@ -2,9 +2,9 @@ package com.github.nestorm001.autoclicker
 
 import android.content.Context
 import android.os.Looper
-import android.support.annotation.IntDef
-import android.support.annotation.StringRes
 import android.widget.Toast
+import androidx.annotation.IntDef
+import androidx.annotation.StringRes
 
 /**
  * Created on 2017/1/6.
@@ -47,6 +47,6 @@ internal fun Context.shortToast(@StringRes id: Int) {
 }
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
-@kotlin.annotation.Retention(AnnotationRetention.SOURCE)
+@Retention(AnnotationRetention.SOURCE)
 @IntDef(Toast.LENGTH_SHORT, Toast.LENGTH_LONG)
 internal annotation class Duration

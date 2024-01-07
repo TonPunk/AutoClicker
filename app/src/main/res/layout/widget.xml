@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
     android:paddingBottom="8dp"
+    android:textAlignment="center"
     android:paddingLeft="16dp"
     android:paddingRight="16dp"
     android:paddingTop="8dp"

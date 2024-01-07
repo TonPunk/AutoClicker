@@ -1,34 +1,31 @@
 package com.github.nestorm001.autoclicker
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.annotation.TargetApi
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.support.v7.app.AppCompatActivity
 import android.view.accessibility.AccessibilityManager
+import android.widget.Button
+import androidx.appcompat.app.AppCompatActivity
 import com.github.nestorm001.autoclicker.service.FloatingClickService
 import com.github.nestorm001.autoclicker.service.autoClickService
-import kotlinx.android.synthetic.main.activity_main.*
 
 
 private const val PERMISSION_CODE = 110
 
-class MainActivity : AppCompatActivity() {
+class MainActivity: AppCompatActivity() {
 
     private var serviceIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val button = findViewById<Button>(R.id.button)
         button.setOnClickListener {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N
-                    || Settings.canDrawOverlays(this)) {
-                serviceIntent = Intent(this@MainActivity,
-                        FloatingClickService::class.java)
+            if (Settings.canDrawOverlays(this)) {
+                serviceIntent = Intent(this@MainActivity, FloatingClickService::class.java)
                 startService(serviceIntent)
                 onBackPressed()
             } else {
@@ -57,13 +54,11 @@ class MainActivity : AppCompatActivity() {
         if (!hasPermission) {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && !Settings.canDrawOverlays(this)) {
+        if (!Settings.canDrawOverlays(this)) {
             askPermission()
         }
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
     private fun askPermission() {
         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName"))
@@ -78,13 +73,14 @@ class MainActivity : AppCompatActivity() {
         autoClickService?.let {
             "stop auto click service".logd()
             it.stopSelf()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) return it.disableSelf()
-            autoClickService = null
+            return it.disableSelf()
         }
         super.onDestroy()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        super.onBackPressed()
         moveTaskToBack(true)
     }
 }

@@ -1,6 +1,7 @@
 package com.github.nestorm001.autoclicker
 
 import android.content.Context
+import android.content.res.Resources
 import android.util.Log
 
 
@@ -18,6 +19,9 @@ fun Any.logd(tag: String = TAG) {
         Log.d(tag, this.toString())
     }
 }
+
+fun Int.toPx(): Int = (this * Resources.getSystem().displayMetrics.density).toInt()
+
 
 fun Any.loge(tag: String = TAG) {
     if (!BuildConfig.DEBUG) return
