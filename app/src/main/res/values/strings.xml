@@ -3,4 +3,5 @@
     <string name="accessibility_service_description">TODO</string>
     <string name="accessibility_service_name">AutoClickService</string>
     <string name="accessibility_service_id">com.github.nestorm001.autoclicker/.service.AutoClickService</string>
+    <string name="time_left">Time left: </string>
 </resources>

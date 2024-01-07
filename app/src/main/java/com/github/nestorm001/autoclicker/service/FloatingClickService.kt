@@ -6,20 +6,34 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.PixelFormat
+import android.icu.text.SimpleDateFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.core.view.doOnNextLayout
 import com.github.nestorm001.autoclicker.R
 import com.github.nestorm001.autoclicker.TouchAndDragListener
 import com.github.nestorm001.autoclicker.dp2px
 import com.github.nestorm001.autoclicker.logd
 import com.github.nestorm001.autoclicker.toPx
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.Locale
 import java.util.Timer
 import kotlin.concurrent.fixedRateTimer
-import kotlin.concurrent.schedule
 import kotlin.random.Random
 
 
@@ -29,17 +43,25 @@ import kotlin.random.Random
  */
 class FloatingClickService: Service() {
     private lateinit var manager: WindowManager
-    private lateinit var view: View
-    private lateinit var params: WindowManager.LayoutParams
+    private lateinit var startButton: View
+    private lateinit var timeLeftTextView: View
+    private lateinit var clicksAgainInTextView: View
+    private lateinit var startButtonParams: WindowManager.LayoutParams
     private var xForRecord = 0
     private var yForRecord = 0
     private val location = IntArray(2)
     private var startDragDistance: Int = 0
     private var clickTimer: Timer? = null
     private var outerTimer: Timer? = null
-    private var stopTimer: Timer? = null
+
+    private var periodicTimerJob: Job? = null
+    private var timeLeftJob: Job? = null
+
     private val screenWidth = Resources.getSystem().displayMetrics.widthPixels
     private val screenHeight = Resources.getSystem().displayMetrics.heightPixels
+    private var startAgainIn: Long = 1_680_000
+    private var clicksTimeLeft: Long = 100_000
+    private val dateFormatter = SimpleDateFormat("mm:ss", Locale("en"))
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -48,7 +70,9 @@ class FloatingClickService: Service() {
     override fun onCreate() {
         super.onCreate()
         startDragDistance = dp2px(10f)
-        view = LayoutInflater.from(this).inflate(R.layout.widget, null)
+        startButton = LayoutInflater.from(this).inflate(R.layout.start_button, null)
+        timeLeftTextView = LayoutInflater.from(this).inflate(R.layout.time_textview, null)
+        clicksAgainInTextView = LayoutInflater.from(this).inflate(R.layout.time_textview, null)
 
         //setting the layout parameters
         val overlayParam =
@@ -57,24 +81,70 @@ class FloatingClickService: Service() {
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
-        params = WindowManager.LayoutParams(
+        startButtonParams = WindowManager.LayoutParams(
             80.toPx(),
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            80.toPx(),
             overlayParam,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT)
 
+        val tvX = -screenWidth
+        val tvY = (-screenHeight / 2) + 74.toPx()
+        val tvTimeLeftParam = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            tvX,
+            tvY,
+            overlayParam,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT)
+
+
         //getting windows services and adding the floating view to it
         manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        manager.addView(view, params)
+        manager.addView(startButton, startButtonParams)
+        (timeLeftTextView as? TextView)?.text =
+            "Time left until collection:\n ${startAgainIn.millsToSec().toTime()}"
+        (clicksAgainInTextView as? TextView)?.text =
+            "Collecting time left:\n ${clicksTimeLeft.millsToSec().toTime()}"
+        manager.addView(timeLeftTextView, tvTimeLeftParam)
+        timeLeftTextView.doOnNextLayout {
+            val tvClicksAgainInParam = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                tvX,
+                tvY + (it.height + 8.toPx()),
+                overlayParam,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT)
+            manager.addView(clicksAgainInTextView, tvClicksAgainInParam)
+        }
 
         //adding an touchlistener to make drag movement of the floating widget
-        view.setOnTouchListener(TouchAndDragListener(params, startDragDistance,
-                                                     { viewOnClick() },
-                                                     {
-                                                         "updateViewLayout".logd()
-                                                         manager.updateViewLayout(view, params)
-                                                     }))
+        startButton.setOnTouchListener(TouchAndDragListener(startButtonParams, startDragDistance,
+                                                            { viewOnClick() },
+                                                            {
+                                                                "updateViewLayout".logd()
+                                                                manager.updateViewLayout(
+                                                                    startButton, startButtonParams)
+                                                            }))
+    }
+
+    private fun Long.toTime(): String {
+        return dateFormatter.format(Date(this * 1000))
+    }
+
+    private fun Long.millsToSec(): Long {
+        return this / 1000
+    }
+
+    private fun uiTimer(totalMilSeconds: Long): Flow<String> {
+        val totalSeconds = totalMilSeconds / 1000
+        return (totalSeconds - 1 downTo 0).asFlow()
+            .onEach { delay(1000) }
+            .onStart { emit(totalSeconds) }
+            .conflate()
+            .map { it.toTime() }
     }
 
     private var isOn = false
@@ -83,32 +153,53 @@ class FloatingClickService: Service() {
         if (isOn) {
             outerTimer?.cancel()
             clickTimer?.cancel()
+            periodicTimerJob?.cancel()
+            periodicTimerJob = null
+            timeLeftJob?.cancel()
+            timeLeftJob = null
         } else {
             outerTimer = fixedRateTimer(initialDelay = 0,
-                                        period = 1_680_000) {
+                                        period = startAgainIn) {
                 "outerTimer called".logd()
+
                 clickTimer?.cancel()
-                stopTimer?.cancel()
+                timeLeftJob?.cancel()
+                periodicTimerJob = MainScope().launch {
+                    uiTimer(startAgainIn)
+                        .onCompletion { }
+                        .collect {
+                            val title = "Time left until collection:\n $it"
+                            (timeLeftTextView as? TextView)?.text = title
+                        }
+                }
+                timeLeftJob = MainScope().launch {
+                    uiTimer(clicksTimeLeft)
+                        .onStart {
+                            val title = "Time left until collection:\n $startAgainIn"
+                            (timeLeftTextView as? TextView)?.text = title
+                        }
+                        .onCompletion {
+                            clickTimer?.cancel()
+                        }
+                        .collect {
+                            val title = "Collecting time left:\n $it"
+                            (clicksAgainInTextView as? TextView)?.text = title
+                        }
+                }
+
                 clickTimer = fixedRateTimer(initialDelay = 0,
                                             period = 121) {
-                    view.getLocationOnScreen(location)
-                    autoClickService?.click(getRandomXDirection(view),
-                                            getRandomYDirection(view))
-                }
-                stopTimer = Timer(false)
-                stopTimer?.schedule(100_000) {
-                    "stopTimer called".logd()
-                    clickTimer?.cancel()
+                    startButton.getLocationOnScreen(location)
+                    autoClickService?.click(getRandomXDirection(startButton),
+                                            getRandomYDirection(startButton))
                 }
             }
         }
         isOn = !isOn
         val title = if (isOn) "ON" else "OFF"
-
-        (view as? TextView)?.setText(title)
+        (startButton as? TextView)?.text = title
 
     }
-
 
     private fun getRandomXDirection(view: View): Int {
         val x = when (Random.nextBoolean()) {
@@ -123,7 +214,7 @@ class FloatingClickService: Service() {
     }
 
     private fun getRandomYDirection(view: View): Int {
-        val y =  when (Random.nextBoolean()) {
+        val y = when (Random.nextBoolean()) {
             true -> location[1] - view.height - randomInt()
             false -> location[1] + view.bottom + randomInt()
         }
@@ -141,19 +232,22 @@ class FloatingClickService: Service() {
         "FloatingClickService onDestroy".logd()
         clickTimer?.cancel()
         outerTimer?.cancel()
-        stopTimer?.cancel()
-        manager.removeView(view)
+        periodicTimerJob?.cancel()
+        timeLeftJob?.cancel()
+        manager.removeView(startButton)
+        manager.removeView(timeLeftTextView)
+        manager.removeView(clicksAgainInTextView)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         "FloatingClickService onConfigurationChanged".logd()
-        val x = params.x
-        val y = params.y
-        params.x = xForRecord
-        params.y = yForRecord
+        val x = startButtonParams.x
+        val y = startButtonParams.y
+        startButtonParams.x = xForRecord
+        startButtonParams.y = yForRecord
         xForRecord = x
         yForRecord = y
-        manager.updateViewLayout(view, params)
+        manager.updateViewLayout(startButton, startButtonParams)
     }
 }
