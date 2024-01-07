@@ -1,4 +1,4 @@
-package com.github.nestorm001.autoclicker.bean
+package com.github.tonpunk.autoclicker.bean
 
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path

@@ -2,6 +2,9 @@
     <string name="app_name">AutoClicker</string>
     <string name="accessibility_service_description">TODO</string>
     <string name="accessibility_service_name">AutoClickService</string>
-    <string name="accessibility_service_id">com.github.nestorm001.autoclicker/.service.AutoClickService</string>
+    <string name="accessibility_service_id">com.github.tonpunk.autoclicker/.service.AutoClickService</string>
     <string name="time_left">Time left: </string>
+    <string name="settings">Settings</string>
+    <string name="period_left_title">Time left until collection: </string>
+    <string name="time_left_title">Collecting time left: </string>
 </resources>

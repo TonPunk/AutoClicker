@@ -4,7 +4,7 @@ apply plugin: 'kotlin-android'
 android {
     compileSdkVersion 34
     defaultConfig {
-        applicationId "com.github.nestorm001.autoclicker"
+        applicationId "com.github.tonpunk.autoclicker"
         minSdkVersion 24
         targetSdkVersion 34
         versionCode 1
@@ -29,15 +29,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    namespace 'com.github.nestorm001.autoclicker'
+    namespace 'com.github.tonpunk.autoclicker'
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation("androidx.core:core-ktx:1.12.0")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation 'com.contrarywind:Android-PickerView:4.1.9'
 
-    implementation ("androidx.appcompat:appcompat:1.6.1")
     implementation ("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation ("com.google.android.material:material:1.11.0")
 }

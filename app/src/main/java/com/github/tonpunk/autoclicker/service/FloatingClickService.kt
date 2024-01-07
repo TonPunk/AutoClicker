@@ -1,4 +1,4 @@
-package com.github.nestorm001.autoclicker.service
+package com.github.tonpunk.autoclicker.service
 
 import android.app.Service
 import android.content.Context
@@ -14,11 +14,15 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.view.doOnNextLayout
-import com.github.nestorm001.autoclicker.R
-import com.github.nestorm001.autoclicker.TouchAndDragListener
-import com.github.nestorm001.autoclicker.dp2px
-import com.github.nestorm001.autoclicker.logd
-import com.github.nestorm001.autoclicker.toPx
+import com.github.tonpunk.Settings.clicksTimeLeft
+import com.github.tonpunk.Settings.startAgainIn
+import com.github.tonpunk.autoclicker.TouchAndDragListener
+import com.github.tonpunk.autoclicker.dp2px
+import com.github.tonpunk.autoclicker.logd
+import com.github.tonpunk.autoclicker.millsToSec
+import com.github.tonpunk.autoclicker.toPx
+import com.github.tonpunk.autoclicker.toTime
+import com.github.tonpunk.autoclicker.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
@@ -51,6 +55,9 @@ class FloatingClickService: Service() {
     private var yForRecord = 0
     private val location = IntArray(2)
     private var startDragDistance: Int = 0
+
+    private val clickSpeed = 80L
+
     private var clickTimer: Timer? = null
     private var outerTimer: Timer? = null
 
@@ -59,9 +66,6 @@ class FloatingClickService: Service() {
 
     private val screenWidth = Resources.getSystem().displayMetrics.widthPixels
     private val screenHeight = Resources.getSystem().displayMetrics.heightPixels
-    private var startAgainIn: Long = 1_680_000
-    private var clicksTimeLeft: Long = 100_000
-    private val dateFormatter = SimpleDateFormat("mm:ss", Locale("en"))
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -88,7 +92,7 @@ class FloatingClickService: Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT)
 
-        val tvX = -screenWidth
+        val tvX = 0
         val tvY = (-screenHeight / 2) + 74.toPx()
         val tvTimeLeftParam = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -130,14 +134,6 @@ class FloatingClickService: Service() {
                                                             }))
     }
 
-    private fun Long.toTime(): String {
-        return dateFormatter.format(Date(this * 1000))
-    }
-
-    private fun Long.millsToSec(): Long {
-        return this / 1000
-    }
-
     private fun uiTimer(totalMilSeconds: Long): Flow<String> {
         val totalSeconds = totalMilSeconds / 1000
         return (totalSeconds - 1 downTo 0).asFlow()
@@ -161,9 +157,10 @@ class FloatingClickService: Service() {
             outerTimer = fixedRateTimer(initialDelay = 0,
                                         period = startAgainIn) {
                 "outerTimer called".logd()
-
                 clickTimer?.cancel()
                 timeLeftJob?.cancel()
+                periodicTimerJob?.cancel()
+
                 periodicTimerJob = MainScope().launch {
                     uiTimer(startAgainIn)
                         .onCompletion { }
@@ -172,6 +169,7 @@ class FloatingClickService: Service() {
                             (timeLeftTextView as? TextView)?.text = title
                         }
                 }
+
                 timeLeftJob = MainScope().launch {
                     uiTimer(clicksTimeLeft)
                         .onStart {
@@ -179,6 +177,7 @@ class FloatingClickService: Service() {
                             (timeLeftTextView as? TextView)?.text = title
                         }
                         .onCompletion {
+                            "onCompletion timeLeftJob".logd()
                             clickTimer?.cancel()
                         }
                         .collect {
@@ -188,7 +187,7 @@ class FloatingClickService: Service() {
                 }
 
                 clickTimer = fixedRateTimer(initialDelay = 0,
-                                            period = 121) {
+                                            period = clickSpeed) {
                     startButton.getLocationOnScreen(location)
                     autoClickService?.click(getRandomXDirection(startButton),
                                             getRandomYDirection(startButton))

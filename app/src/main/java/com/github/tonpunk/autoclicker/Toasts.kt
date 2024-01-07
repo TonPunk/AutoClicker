@@ -1,4 +1,4 @@
-package com.github.nestorm001.autoclicker
+package com.github.tonpunk.autoclicker
 
 import android.content.Context
 import android.os.Looper
